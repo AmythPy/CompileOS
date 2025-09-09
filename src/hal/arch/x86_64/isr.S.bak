@@ -1,0 +1,15 @@
+[BITS 64]
+%assign i 0
+%rep 32
+global interrupt_handler_%i
+interrupt_handler_%i:
+    iretq
+%assign i i+1
+%endrep
+%assign i 0
+%rep 16
+global irq_handler_%i
+irq_handler_%i:
+    iretq
+%assign i i+1
+%endrep
