@@ -71,3 +71,9 @@ echo To test embedded OS (if available):
 echo   qemu-system-x86_64 -hda build\compileos_embedded.bmp -m 512M
 echo.
 pause
+
+
+
+
+
+

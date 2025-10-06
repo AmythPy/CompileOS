@@ -132,3 +132,9 @@ if __name__ == "__main__":
         print(f"\n❌ Issues found with splash.bmp")
     
     input("\nPress Enter to continue...")
+
+
+
+
+
+

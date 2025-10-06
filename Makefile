@@ -8,11 +8,11 @@ LD = ld
 OBJCOPY = objcopy
 
 # Architecture
-ARCH = x86_64
+ARCH = i386
 
 # Compiler flags
-CFLAGS := -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal
-ASFLAGS = -f elf64
+CFLAGS := -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -m32 -march=i386 -fno-pic -Isrc
+ASFLAGS = -f elf32
 LDFLAGS = -T linker.ld -nostdlib
 
 # Directories
@@ -23,18 +23,20 @@ BOOT_DIR = $(SRC_DIR)/boot
 BUILD_DIR = build
 OBJ_DIR = $(BUILD_DIR)/obj
 
-# Source files
-KERNEL_SOURCES = $(KERNEL_DIR)/main.c
-KERNEL_SOURCES = $(wildcard $(KERNEL_DIR)/*.c) $(wildcard $(KERNEL_DIR)/*/*.c)
-HAL_SOURCES = $(wildcard $(HAL_DIR)/*.c) $(wildcard $(HAL_DIR)/arch/*/*.c)
-HAL_ASM_SOURCES = $(wildcard $(HAL_DIR)/arch/*/*.asm)
-BOOT_SOURCES = $(wildcard $(BOOT_DIR)/*.asm)
+# Source files (essential only - no HAL for 32-bit compatibility)
+KERNEL_SOURCES = \
+	$(KERNEL_DIR)/main.c \
+	$(KERNEL_DIR)/util.c \
+	$(KERNEL_DIR)/browser.c \
+	$(KERNEL_DIR)/desktop/desktop.c \
+	$(KERNEL_DIR)/window/window_manager.c \
+	$(KERNEL_DIR)/network.c \
+	$(KERNEL_DIR)/boot/splash.c
 
-# Object files
+DRIVER_SOURCES =
+
 KERNEL_OBJECTS = $(KERNEL_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-HAL_OBJECTS = $(HAL_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-HAL_ASM_OBJECTS = $(HAL_ASM_SOURCES:$(SRC_DIR)/%.asm=$(OBJ_DIR)/%.o)
-BOOT_OBJECTS = $(BOOT_SOURCES:$(SRC_DIR)/%.asm=$(OBJ_DIR)/%.o)
+DRIVER_OBJECTS = $(DRIVER_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Target files
 KERNEL_BIN = $(BUILD_DIR)/kernel.bin
@@ -45,7 +47,7 @@ ISO_IMAGE = $(BUILD_DIR)/compileos.iso
 EMBED_TOOL = $(BUILD_DIR)/embed_os
 
 # Default target
-all: $(ISO_IMAGE)
+all: $(KERNEL_BIN)
 
 # Create build directories
 $(OBJ_DIR):
@@ -54,14 +56,16 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)/kernel/debugger
 	mkdir -p $(OBJ_DIR)/kernel/terminal
 	mkdir -p $(OBJ_DIR)/kernel/repl
+	mkdir -p $(OBJ_DIR)/kernel/desktop
+	mkdir -p $(OBJ_DIR)/kernel/window
+	mkdir -p $(OBJ_DIR)/kernel/fs
+	mkdir -p $(OBJ_DIR)/kernel/stubs
+	mkdir -p $(OBJ_DIR)/kernel/boot
 	mkdir -p $(OBJ_DIR)/hal/arch/x86_64
 	mkdir -p $(OBJ_DIR)/hal/arch/arm64
-	mkdir -p $(OBJ_DIR)/drivers/vga
-	mkdir -p $(OBJ_DIR)/drivers/keyboard
 	mkdir -p $(OBJ_DIR)/boot
 	mkdir -p $(OBJ_DIR)/tools
 
-# Compile C sources
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -69,45 +73,30 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.asm | $(OBJ_DIR)
 	$(AS) $(ASFLAGS) $< -o $@
 
-# Link kernel
-$(KERNEL_BIN): $(KERNEL_OBJECTS) $(HAL_OBJECTS) $(HAL_ASM_OBJECTS) | $(OBJ_DIR)
-	$(LD) $(LDFLAGS) -o $@ $^
+# Assemble top-level boot.S (NASM syntax)
+$(OBJ_DIR)/bootS.o: $(SRC_DIR)/boot/boot.S | $(OBJ_DIR)
+	$(AS) -f elf32 $< -o $@
+
+# Use top-level boot.S for multiboot header/entry
+BOOT_ASM_SOURCES = boot.S
+# Object for top-level boot.S
+BOOT_ASM_OBJECTS = $(OBJ_DIR)/bootS.o
 
 # Create bootloader binary
-$(BOOTLOADER_BIN): $(BOOT_OBJECTS) | $(OBJ_DIR)
+$(BOOTLOADER_BIN): $(BOOT_ASM_OBJECTS) | $(OBJ_DIR)
 	$(OBJCOPY) -O binary $< $@
 
-# Create embedded bootloader binary
-$(EMBEDDED_BOOTLOADER_BIN): $(OBJ_DIR)/boot/embedded_boot.o | $(OBJ_DIR)
-	$(OBJCOPY) -O binary $< $@
+# Link kernel (multiboot must be first!)
+$(KERNEL_BIN): $(BOOT_ASM_OBJECTS) $(KERNEL_OBJECTS) $(DRIVER_OBJECTS) | $(OBJ_DIR)
+	$(LD) $(LDFLAGS) -o $@ $^
 
-# Create embed tool
-$(EMBED_TOOL): $(OBJ_DIR)/tools/embed_os.o | $(OBJ_DIR)
-	$(CC) -o $@ $^
+# Run in QEMU (using ELF multiboot kernel)
+run: $(KERNEL_BIN)
+	qemu-system-i386 -kernel $(KERNEL_BIN) -m 512M
 
-# Create embedded OS BMP
-$(EMBEDDED_OS_BMP): $(KERNEL_BIN) $(EMBED_TOOL) | $(BUILD_DIR)
-	$(EMBED_TOOL) embed splash.bmp $(KERNEL_BIN) $@
-
-# Create ISO image
-$(ISO_IMAGE): $(KERNEL_BIN) $(BOOTLOADER_BIN)
-	mkdir -p $(BUILD_DIR)/iso/boot/grub
-	cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/
-	cp $(BOOTLOADER_BIN) $(BUILD_DIR)/iso/boot/
-	cp grub.cfg $(BUILD_DIR)/iso/boot/grub/
-	grub-mkrescue -o $@ $(BUILD_DIR)/iso/
-
-# Clean build artifacts
-clean:
-	rm -rf $(BUILD_DIR)
-
-# Run in QEMU
-run: $(ISO_IMAGE)
-	qemu-system-x86_64 -cdrom $(ISO_IMAGE) -m 512M
-
-# Debug in QEMU
-debug: $(ISO_IMAGE)
-	qemu-system-x86_64 -cdrom $(ISO_IMAGE) -m 512M -s -S
+# Debug in QEMU (using ELF multiboot kernel)
+debug: $(KERNEL_BIN)
+	qemu-system-i386 -kernel $(KERNEL_BIN) -m 512M -s -S
 
 # Build embedded OS
 embedded: $(EMBEDDED_OS_BMP)
@@ -142,23 +131,3 @@ help:
 	@echo "  help         - Show this help"
 
 .PHONY: all clean run debug install-deps help
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc  -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
