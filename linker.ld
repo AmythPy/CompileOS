@@ -1,45 +1,63 @@
-/* CompileOS Kernel Linker Script */
+/* CompileOS Kernel Linker Script - ELF with Multiboot Header */
 
-ENTRY(kernel_main)
+OUTPUT_FORMAT(elf32-i386)
+OUTPUT_ARCH(i386)
+ENTRY(_start)
 
 SECTIONS
 {
-    /* Kernel starts at 1MB */
-    . = 0x100000;
-    
-    /* Kernel code section */
+    /* Multiboot header MUST be in the first 8192 bytes for QEMU */
+    . = 0x1000;
+
+    .multiboot :
+    {
+        *(.multiboot)
+    }
+
+    .bootstrap_stack :
+    {
+        . = ALIGN(16);
+        *(.bootstrap_stack)
+    }
+
     .text : ALIGN(4K)
     {
         *(.text)
         *(.text.*)
     }
-    
-    /* Read-only data */
+
     .rodata : ALIGN(4K)
     {
         *(.rodata)
         *(.rodata.*)
     }
-    
-    /* Read-write data */
+
     .data : ALIGN(4K)
     {
         *(.data)
         *(.data.*)
     }
-    
-    /* Uninitialized data */
+
     .bss : ALIGN(4K)
     {
         *(COMMON)
         *(.bss)
         *(.bss.*)
     }
-    
-    /* Discard other sections */
+
     /DISCARD/ :
     {
         *(.comment)
         *(.note*)
     }
 }
+
+
+
+
+
+
+
+
+
+

@@ -180,3 +180,13 @@ CompileOS/
 - [Intel 64 and IA-32 Architectures Manual](https://software.intel.com/en-us/articles/intel-sdm)
 - [GNU GRUB Manual](https://www.gnu.org/software/grub/manual/)
 - [QEMU Documentation](https://qemu.readthedocs.io/)
+
+
+
+
+
+
+
+
+
+

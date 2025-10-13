@@ -178,3 +178,13 @@ global cpu_nop
 cpu_nop:
     nop
     ret
+
+
+
+
+
+
+
+
+
+

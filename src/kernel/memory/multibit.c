@@ -32,6 +32,11 @@ int multibit_memory_init(void) {
     return 0;
 }
 
+// Alias for main.c compatibility
+int multibit_init(void) {
+    return multibit_memory_init();
+}
+
 /**
  * 16-bit memory access
  */
@@ -265,7 +270,7 @@ uint16_t memory_64_to_16(uint64_t value) {
 /**
  * Memory alignment functions
  */
-bool memory_is_aligned(void* address, memory_mode_t mode) {
+bool multibit_is_aligned(void* address, memory_mode_t mode) {
     if (!address) return false;
     
     uint64_t addr = (uint64_t)address;
@@ -281,7 +286,7 @@ bool memory_is_aligned(void* address, memory_mode_t mode) {
     }
 }
 
-void* memory_align(void* address, memory_mode_t mode) {
+void* multibit_align(void* address, memory_mode_t mode) {
     if (!address) return NULL;
     
     uint64_t addr = (uint64_t)address;
@@ -297,7 +302,7 @@ void* memory_align(void* address, memory_mode_t mode) {
     }
 }
 
-size_t memory_align_size(size_t size, memory_mode_t mode) {
+size_t multibit_align_size(size_t size, memory_mode_t mode) {
     switch (mode) {
         case MEMORY_MODE_16BIT:
             return (size + 1) & ~1;
@@ -497,3 +502,13 @@ void physics_free_vectors_32(physics_vector_32_t* vectors) {
 void physics_free_vectors_64(physics_vector_64_t* vectors) {
     if (vectors) memory_free(vectors);
 }
+
+
+
+
+
+
+
+
+
+

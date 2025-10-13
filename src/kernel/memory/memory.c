@@ -244,3 +244,4 @@ void* memory_set(void* s, int c, size_t n) {
 int memory_compare(const void* s1, const void* s2, size_t n) {
     return memcmp(s1, s2, n);
 }
+

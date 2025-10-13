@@ -256,3 +256,13 @@ int terminal_load_theme(const char* name);
 int terminal_save_theme(const char* name);
 
 #endif // TERMINAL_H
+
+
+
+
+
+
+
+
+
+

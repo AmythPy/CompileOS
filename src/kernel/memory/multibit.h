@@ -2,7 +2,7 @@
  * CompileOS Multi-Bit Memory Addressing - Header
  * 
  * Support for 16-bit, 32-bit, and 64-bit memory addressing
- * Perfect for physics engines and legacy code compatibility
+ * Optimized for physics engines and legacy code compatibility
  */
 
 #ifndef MULTIBIT_H
@@ -11,14 +11,13 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "access.h"
 
-// Memory addressing modes
-//typedef enum {
-//    MEMORY_MODE_16BIT = 16,
-  //  MEMORY_MODE_32BIT = 32,
-    //MEMORY_MODE_64BIT = 64
-//} memory_mode_t;
+// Memory mode type
+typedef enum {
+    MEMORY_MODE_16BIT = 16,
+    MEMORY_MODE_32BIT = 32,
+    MEMORY_MODE_64BIT = 64
+} memory_mode_t;
 
 // Memory access types
 //typedef enum {
@@ -63,6 +62,7 @@ void memory_write_generic(void* address, void* value, memory_mode_t mode);
 
 // Memory region management
 int multibit_memory_init(void);
+int multibit_init(void);  // Alias for compatibility
 int multibit_memory_alloc_region(memory_mode_t mode, size_t size, multibit_memory_region_t* region);
 int multibit_memory_free_region(multibit_memory_region_t* region);
 int multibit_memory_get_regions(multibit_memory_region_t* regions, size_t max_count, size_t* actual_count);
@@ -76,9 +76,9 @@ uint32_t memory_64_to_32(uint64_t value);
 uint16_t memory_64_to_16(uint64_t value);
 
 // Memory alignment functions
-bool memory_is_aligned(void* address, memory_mode_t mode);
-void* memory_align(void* address, memory_mode_t mode);
-size_t memory_align_size(size_t size, memory_mode_t mode);
+bool multibit_is_aligned(void* address, memory_mode_t mode);
+void* multibit_align(void* address, memory_mode_t mode);
+size_t multibit_align_size(size_t size, memory_mode_t mode);
 
 // Memory copying with different bit modes
 void memory_copy_16_to_16(void* dest, const void* src, size_t count);
@@ -145,3 +145,13 @@ void physics_free_vectors_32(physics_vector_32_t* vectors);
 void physics_free_vectors_64(physics_vector_64_t* vectors);
 
 #endif // MULTIBIT_H
+
+
+
+
+
+
+
+
+
+

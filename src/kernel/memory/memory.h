@@ -43,3 +43,4 @@ int memory_map_virtual(void* virtual_addr, void* physical_addr, size_t size);
 int memory_unmap_virtual(void* virtual_addr, size_t size);
 
 #endif // MEMORY_H
+

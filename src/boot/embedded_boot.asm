@@ -246,3 +246,13 @@ os_version times 16 db 0
 ; Boot sector signature
 times 510-($-$$) db 0
 dw 0xAA55
+
+
+
+
+
+
+
+
+
+

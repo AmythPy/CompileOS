@@ -197,3 +197,13 @@ void exception_virtualization(interrupt_context_t* context);
 void exception_security(interrupt_context_t* context);
 
 #endif // X86_64_INTERRUPTS_H
+
+
+
+
+
+
+
+
+
+

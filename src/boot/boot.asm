@@ -89,3 +89,13 @@ error_message db 'Error loading kernel!', 0x0D, 0x0A, 0
 ; Boot sector signature
 times 510-($-$$) db 0
 dw 0xAA55
+
+
+
+
+
+
+
+
+
+

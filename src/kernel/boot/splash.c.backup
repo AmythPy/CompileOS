@@ -1,0 +1,254 @@
+/**
+ * CompileOS Boot Splash Screen Implementation
+ * Professional boot screen with animations and progress display
+ */
+
+#include "splash.h"
+#include "../drivers/graphics/graphics.h"
+#include "../drivers/vga/vga.h"
+#include <stdio.h>
+#include <string.h>
+
+// Global splash state
+static splash_config_t g_splash_config = {
+    .width = 800,
+    .height = 600,
+    .background_color = 0xFF1a1a1a,  // Dark gray background
+    .text_color = 0xFFFFFFFF,        // White text
+    .progress_color = 0xFF00FF00,    // Green progress
+    .logo_text = "CompileOS",
+    .show_animations = true
+};
+
+static bool g_splash_initialized = false;
+static splash_phase_t g_current_phase = SPLASH_PHASE_INIT;
+
+/**
+ * Initialize splash screen
+ */
+int splash_init(void) {
+    // Set graphics mode for splash screen
+    graphics_set_mode(GRAPHICS_MODE_VBE_800x600_24);
+
+    // Clear screen with background color
+    color_rgba_t bg_color = graphics_color_from_hex(g_splash_config.background_color);
+    graphics_clear(bg_color);
+
+    g_splash_initialized = true;
+    return 0;
+}
+
+/**
+ * Show splash screen
+ */
+int splash_show(void) {
+    if (!g_splash_initialized) {
+        splash_init();
+    }
+
+    // Draw background
+    color_rgba_t bg_color = graphics_color_from_hex(g_splash_config.background_color);
+    graphics_clear(bg_color);
+
+    // Draw logo
+    splash_draw_logo(300, 150);
+
+    // Draw initial progress
+    splash_update_progress(SPLASH_PHASE_INIT, 0, "Initializing CompileOS...");
+
+    // Flip to screen
+    graphics_flip();
+
+    return 0;
+}
+
+/**
+ * Update splash screen progress
+ */
+int splash_update_progress(splash_phase_t phase, int percentage, const char* message) {
+    if (!g_splash_initialized) return -1;
+
+    g_current_phase = phase;
+
+    // Clear progress area
+    color_rgba_t bg_color = graphics_color_from_hex(g_splash_config.background_color);
+    graphics_fill_rect(100, 400, 600, 100, bg_color);
+
+    // Draw progress bar
+    splash_draw_progress_bar(200, 450, 400, 20, percentage, g_splash_config.progress_color);
+
+    // Draw percentage
+    char percent_text[16];
+    snprintf(percent_text, sizeof(percent_text), "%d%%", percentage);
+    splash_draw_text(400, 480, percent_text, g_splash_config.text_color);
+
+    // Draw message
+    if (message) {
+        splash_draw_text(200, 420, message, g_splash_config.text_color);
+    }
+
+    // Draw phase indicator
+    const char* phase_names[] = {
+        "Initializing...",
+        "Loading Kernel...",
+        "Loading Drivers...",
+        "Starting Services...",
+        "Complete!"
+    };
+
+    splash_draw_text(200, 390, phase_names[phase], g_splash_config.text_color);
+
+    // Flip to screen
+    graphics_flip();
+
+    return 0;
+}
+
+/**
+ * Draw progress bar
+ */
+int splash_draw_progress_bar(int x, int y, int width, int height, int percentage, uint32_t color) {
+    color_rgba_t progress_color = graphics_color_from_hex(color);
+    color_rgba_t bg_color = graphics_color_from_hex(0xFF333333);
+
+    // Draw background
+    graphics_fill_rect(x, y, width, height, bg_color);
+
+    // Draw progress
+    int progress_width = (width * percentage) / 100;
+    graphics_fill_rect(x, y, progress_width, height, progress_color);
+
+    // Draw border
+    color_rgba_t border_color = graphics_color_from_hex(0xFF666666);
+    graphics_draw_rect(x, y, width, height, border_color);
+
+    return 0;
+}
+
+/**
+ * Draw text on splash screen
+ */
+int splash_draw_text(int x, int y, const char* text, uint32_t color) {
+    if (!text) return -1;
+
+    color_rgba_t text_color = graphics_color_from_hex(color);
+    color_rgba_t bg_color = graphics_color_from_hex(g_splash_config.background_color);
+
+    return graphics_draw_text(x, y, text, text_color, bg_color);
+}
+
+/**
+ * Draw CompileOS logo
+ */
+int splash_draw_logo(int x, int y) {
+    // Draw logo background
+    color_rgba_t logo_bg = graphics_color_from_hex(0xFF0066CC);
+    graphics_fill_rect(x - 20, y - 20, 220, 80, logo_bg);
+
+    // Draw logo border
+    color_rgba_t logo_border = graphics_color_from_hex(0xFFFFFFFF);
+    graphics_draw_rect(x - 20, y - 20, 220, 80, logo_border);
+
+    // Draw logo text
+    splash_draw_text(x, y, "CompileOS", 0xFFFFFFFF);
+
+    // Draw version
+    splash_draw_text(x, y + 20, "v1.0.0", 0xFFCCCCCC);
+
+    // Draw tagline
+    splash_draw_text(x - 10, y + 40, "Hardware Agnostic Development Platform", 0xFFAAAAAA);
+
+    return 0;
+}
+
+/**
+ * Animate loading dots
+ */
+int splash_animate_loading(int frame) {
+    if (!g_splash_initialized) return -1;
+
+    // Draw animated loading dots
+    char dots[4] = {0};
+    for (int i = 0; i < (frame % 4); i++) {
+        dots[i] = '.';
+    }
+
+    splash_draw_text(350, 500, dots, g_splash_config.text_color);
+
+    graphics_flip();
+
+    return 0;
+}
+
+/**
+ * Show boot message
+ */
+int splash_show_boot_message(const char* message) {
+    if (!message) return -1;
+
+    splash_draw_text(200, 520, message, g_splash_config.text_color);
+    graphics_flip();
+
+    return 0;
+}
+
+/**
+ * Fade in animation
+ */
+int splash_fade_in(void) {
+    // Simple fade-in effect
+    for (int alpha = 0; alpha <= 255; alpha += 25) {
+        // This would implement alpha blending in a real graphics system
+        splash_show();
+        // Small delay
+        for (volatile int i = 0; i < 100000; i++);
+    }
+
+    return 0;
+}
+
+/**
+ * Fade out animation
+ */
+int splash_fade_out(void) {
+    // Simple fade-out effect
+    for (int alpha = 255; alpha >= 0; alpha -= 25) {
+        // This would implement alpha blending in a real graphics system
+        splash_show();
+        // Small delay
+        for (volatile int i = 0; i < 100000; i++);
+    }
+
+    return 0;
+}
+
+/**
+ * Run complete boot sequence with splash screen
+ */
+int splash_run_boot_sequence(void) {
+    splash_init();
+    splash_show();
+
+    // Boot phases with progress
+    splash_update_progress(SPLASH_PHASE_INIT, 0, "Starting CompileOS...");
+    for (volatile int i = 0; i < 1000000; i++);  // Simulate work
+
+    splash_update_progress(SPLASH_PHASE_INIT, 25, "Initializing hardware...");
+    for (volatile int i = 0; i < 1000000; i++);
+
+    splash_update_progress(SPLASH_PHASE_LOADING_KERNEL, 50, "Loading kernel...");
+    for (volatile int i = 0; i < 1000000; i++);
+
+    splash_update_progress(SPLASH_PHASE_LOADING_DRIVERS, 75, "Loading drivers...");
+    for (volatile int i = 0; i < 1000000; i++);
+
+    splash_update_progress(SPLASH_PHASE_STARTING_SERVICES, 90, "Starting services...");
+    for (volatile int i = 0; i < 1000000; i++);
+
+    splash_update_progress(SPLASH_PHASE_COMPLETE, 100, "Boot complete!");
+
+    // Fade out
+    splash_fade_out();
+
+    return 0;
+}

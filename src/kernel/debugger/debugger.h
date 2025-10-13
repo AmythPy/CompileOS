@@ -78,11 +78,11 @@ typedef enum {
     DEBUGGER_CMD_VARIABLES,
     DEBUGGER_CMD_WATCH,
     DEBUGGER_CMD_QUIT
-} debugger_command_t;
+} debugger_command_type_t;
 
 // Debugger command structure
 typedef struct {
-    debugger_command_t type;
+    debugger_command_type_t type;
     char args[256];
     bool success;
     char output[512];
@@ -176,3 +176,13 @@ int debugger_set_config(const debugger_config_t* config);
 int debugger_get_config(debugger_config_t* config);
 
 #endif // DEBUGGER_H
+
+
+
+
+
+
+
+
+
+

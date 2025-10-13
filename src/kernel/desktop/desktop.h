@@ -34,7 +34,7 @@ typedef enum {
 } window_type_t;
 
 // Window structure
-typedef struct {
+typedef struct window_t {
     uint32_t id;
     char title[64];
     uint16_t x, y;
@@ -44,8 +44,8 @@ typedef struct {
     bool visible;
     bool focused;
     void* content;
-    struct window* next;
-    struct window* prev;
+    struct window_t* next;
+    struct window_t* prev;
 } window_t;
 
 // Desktop structure
@@ -65,6 +65,8 @@ void desktop_shutdown(void);
 int desktop_start(void);
 void desktop_stop(void);
 bool desktop_is_running(void);
+void desktop_update(void);
+void desktop_handle_keyboard_input(char c);
 
 // Window management
 window_t* desktop_create_window(const char* title, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
@@ -208,3 +210,13 @@ int desktop_set_config(const desktop_config_t* config);
 int desktop_get_config(desktop_config_t* config);
 
 #endif // DESKTOP_H
+
+
+
+
+
+
+
+
+
+

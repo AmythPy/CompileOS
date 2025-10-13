@@ -274,6 +274,8 @@ void process_yield(void) {
  * Put process to sleep
  */
 void process_sleep(uint32_t milliseconds) {
+    (void)milliseconds; // Suppress unused parameter warning
+    
     if (g_process_state.current_process) {
         g_process_state.current_process->state = PROCESS_STATE_BLOCKED;
         // TODO: Implement sleep timer
@@ -316,3 +318,13 @@ void process_get_stats(process_stats_t* stats) {
         current = current->next;
     } while (current != g_process_state.process_list);
 }
+
+
+
+
+
+
+
+
+
+

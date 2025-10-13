@@ -13,15 +13,15 @@
 #include "access.h"
 
 // Memory access modes
-//typedef enum {
-    //MEMORY_ACCESS_READ = 0,
-    //MEMORY_ACCESS_WRITE,
-    //MEMORY_ACCESS_EXECUTE,
-    //MEMORY_ACCESS_READ_WRITE,
-    //MEMORY_ACCESS_READ_EXECUTE,
-  //  MEMORY_ACCESS_WRITE_EXECUTE,
-//    MEMORY_ACCESS_ALL
-//} memory_access_mode_t;
+typedef enum {
+    MEMORY_ACCESS_MODE_READ = 0,
+    MEMORY_ACCESS_MODE_WRITE,
+    MEMORY_ACCESS_MODE_EXECUTE,
+    MEMORY_ACCESS_MODE_READ_WRITE,
+    MEMORY_ACCESS_MODE_READ_EXECUTE,
+    MEMORY_ACCESS_MODE_WRITE_EXECUTE,
+    MEMORY_ACCESS_MODE_ALL
+} memory_access_mode_t;
 
 // Memory data types
 //typedef enum {
@@ -93,7 +93,7 @@ int memory_search_pattern(uint64_t start, uint64_t end, const uint8_t* pattern, 
 int memory_search_string(uint64_t start, uint64_t end, const char* string, memory_search_result_t* result);
 
 // Memory comparison
-int memory_compare(uint64_t addr1, uint64_t addr2, size_t size, bool* equal);
+int memory_tools_compare(uint64_t addr1, uint64_t addr2, size_t size, bool* equal);
 int memory_compare_regions(const memory_region_info_t* region1, const memory_region_info_t* region2, bool* equal);
 
 // Memory region management
@@ -180,3 +180,13 @@ int memory_tools_get_last_error(memory_tools_error_t* error, char* message, size
 int memory_tools_clear_error(void);
 
 #endif // MEMORY_TOOLS_H
+
+
+
+
+
+
+
+
+
+

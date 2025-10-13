@@ -16,9 +16,38 @@ static struct {
     cpu_arch_t cpu_arch;
     uint32_t cpu_count;
     uint64_t timer_frequency;
+    volatile uint64_t timer_ticks;
+    timer_callback_t timer_callback;
+    void* timer_callback_ctx;
     interrupt_handler_t interrupt_handlers[256];
     void* interrupt_contexts[256];
 } g_hal_state = {0};
+
+// Serial COM1 (0x3F8) simple init/output for logging
+static void serial_init_com1(void) {
+    // Disable interrupts
+    io_outb(0x3F8 + 1, 0x00);
+    // Enable DLAB
+    io_outb(0x3F8 + 3, 0x80);
+    // Set baud rate divisor to 3 (38400 baud)
+    io_outb(0x3F8 + 0, 0x03);
+    io_outb(0x3F8 + 1, 0x00);
+    // 8 bits, no parity, one stop bit
+    io_outb(0x3F8 + 3, 0x03);
+    // Enable FIFO, clear, 14-byte threshold
+    io_outb(0x3F8 + 2, 0xC7);
+    // IRQs enabled, RTS/DSR set
+    io_outb(0x3F8 + 4, 0x0B);
+}
+
+static int serial_is_transmit_empty(void) {
+    return io_inb(0x3F8 + 5) & 0x20;
+}
+
+static void serial_write_char(char c) {
+    while (!serial_is_transmit_empty()) {}
+    io_outb(0x3F8, (uint8_t)c);
+}
 
 /**
  * Detect CPU architecture
@@ -52,6 +81,8 @@ hal_status_t hal_init(void) {
         case ARCH_X86_64:
             // Initialize x86_64 specific components
             interrupts_init();
+            // Initialize system timer at 100 Hz by default
+            hal_timer_init(100);
             break;
         case ARCH_ARM64:
             // TODO: Initialize ARM64 specific components
@@ -208,8 +239,25 @@ hal_status_t hal_interrupt_acknowledge(uint32_t interrupt_number) {
  * Initialize timer
  */
 hal_status_t hal_timer_init(uint32_t frequency_hz) {
+    if (frequency_hz == 0) {
+        return HAL_ERROR_INVALID_PARAM;
+    }
     g_hal_state.timer_frequency = frequency_hz;
-    // TODO: Implement proper timer initialization
+    g_hal_state.timer_ticks = 0;
+    g_hal_state.timer_callback = 0;
+    g_hal_state.timer_callback_ctx = 0;
+
+    // Program PIT (channel 0) to given frequency
+    // PIT base frequency is 1193182 Hz
+    uint32_t divisor = 1193182u / frequency_hz;
+    if (divisor == 0) divisor = 1;
+    // Command port 0x43: channel 0, lobyte/hibyte, mode 3 (square wave)
+    io_outb(0x43, 0x36);
+    io_outb(0x40, (uint8_t)(divisor & 0xFF));
+    io_outb(0x40, (uint8_t)((divisor >> 8) & 0xFF));
+
+    // Enable IRQ0 (timer)
+    pic_enable_irq(0);
     return HAL_SUCCESS;
 }
 
@@ -217,9 +265,8 @@ hal_status_t hal_timer_init(uint32_t frequency_hz) {
  * Register timer callback
  */
 hal_status_t hal_timer_register_callback(timer_callback_t callback, void* context) {
-    // TODO: Implement timer callback registration
-    (void)callback;
-    (void)context;
+    g_hal_state.timer_callback = callback;
+    g_hal_state.timer_callback_ctx = context;
     return HAL_SUCCESS;
 }
 
@@ -227,8 +274,7 @@ hal_status_t hal_timer_register_callback(timer_callback_t callback, void* contex
  * Get timer ticks
  */
 uint64_t hal_timer_get_ticks(void) {
-    // TODO: Implement proper tick counting
-    return 0;
+    return g_hal_state.timer_ticks;
 }
 
 /**
@@ -239,6 +285,13 @@ uint64_t hal_timer_ticks_to_ns(uint64_t ticks) {
         return 0;
     }
     return (ticks * 1000000000ULL) / g_hal_state.timer_frequency;
+}
+
+void hal_timer_on_interrupt(void) {
+    g_hal_state.timer_ticks++;
+    if (g_hal_state.timer_callback) {
+        g_hal_state.timer_callback(g_hal_state.timer_callback_ctx);
+    }
 }
 
 /**
@@ -314,8 +367,7 @@ hal_status_t hal_get_system_info(void* info_buffer, size_t buffer_size) {
  * Debug and logging
  */
 hal_status_t hal_debug_putchar(char c) {
-    // TODO: Implement proper debug output (serial, VGA, etc.)
-    (void)c;
+    serial_write_char(c);
     return HAL_SUCCESS;
 }
 
@@ -331,6 +383,6 @@ hal_status_t hal_debug_puts(const char* str) {
 }
 
 hal_status_t hal_log_init(void) {
-    // TODO: Implement proper logging initialization
+    serial_init_com1();
     return HAL_SUCCESS;
 }

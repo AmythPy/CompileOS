@@ -1,0 +1,1 @@
+[package]\nname = "rust_alloc"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\ncrate-type = ["staticlib"]\n\n[dev-dependencies]\n\n[profile.dev]\npanic = "abort"\n\n[profile.release]\npanic = "abort"

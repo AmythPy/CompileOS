@@ -133,3 +133,13 @@ static inline void io_delay(void) {
 }
 
 #endif // X86_64_IO_H
+
+
+
+
+
+
+
+
+
+

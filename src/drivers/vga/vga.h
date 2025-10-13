@@ -170,3 +170,13 @@ int vga_display_boot_message(const char* message);
 int vga_display_progress_bar(uint16_t x, uint16_t y, uint16_t width, uint8_t progress);
 
 #endif // VGA_H
+
+
+
+
+
+
+
+
+
+

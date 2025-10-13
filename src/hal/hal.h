@@ -78,6 +78,8 @@ hal_status_t hal_timer_init(uint32_t frequency_hz);
 hal_status_t hal_timer_register_callback(timer_callback_t callback, void* context);
 uint64_t hal_timer_get_ticks(void);
 uint64_t hal_timer_ticks_to_ns(uint64_t ticks);
+// Called from ISR on timer interrupt
+void hal_timer_on_interrupt(void);
 
 // I/O operations
 hal_status_t hal_io_read8(uint16_t port, uint8_t* value);
@@ -98,3 +100,4 @@ hal_status_t hal_debug_puts(const char* str);
 hal_status_t hal_log_init(void);
 
 #endif // HAL_H
+

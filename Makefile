@@ -1,18 +1,16 @@
 # CompileOS Makefile
 # Builds the CompileOS kernel and bootloader
 
-# Compiler and tools
-CC = gcc
-AS = nasm
-LD = ld
-OBJCOPY = objcopy
+# Rust toolchain for kernel components
+RUSTC = rustc
+CARGO = cargo
 
-# Architecture
-ARCH = x86_64
+# Architecture - Use 32-bit for compatibility
+ARCH = i386
 
-# Compiler flags
-CFLAGS := -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal
-ASFLAGS = -f elf64
+# Compiler flags for 32-bit freestanding kernel
+CFLAGS := -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -m32 -march=i386 -Isrc -Isrc/devtools
+ASFLAGS = -f elf32
 LDFLAGS = -T linker.ld -nostdlib
 
 # Directories
@@ -23,107 +21,101 @@ BOOT_DIR = $(SRC_DIR)/boot
 BUILD_DIR = build
 OBJ_DIR = $(BUILD_DIR)/obj
 
-# Source files
-KERNEL_SOURCES = $(KERNEL_DIR)/main.c
-KERNEL_SOURCES = $(wildcard $(KERNEL_DIR)/*.c) $(wildcard $(KERNEL_DIR)/*/*.c)
-HAL_SOURCES = $(wildcard $(HAL_DIR)/*.c) $(wildcard $(HAL_DIR)/arch/*/*.c)
-HAL_ASM_SOURCES = $(wildcard $(HAL_DIR)/arch/*/*.asm)
-BOOT_SOURCES = $(wildcard $(BOOT_DIR)/*.asm)
+# Source files that actually exist
+KERNEL_SOURCES = \
+	$(KERNEL_DIR)/main.c \
+	$(KERNEL_DIR)/util.c \
+	$(KERNEL_DIR)/vga_graphics.c \
+	$(KERNEL_DIR)/desktop/desktop.c \
+	$(KERNEL_DIR)/apps/browser.c \
+	$(KERNEL_DIR)/network.c \
+	$(KERNEL_DIR)/terminal/terminal.c \
+	$(KERNEL_DIR)/fs/fs.c \
+	$(KERNEL_DIR)/window/window_manager.c \
+	$(KERNEL_DIR)/interrupts.c \
+	$(KERNEL_DIR)/timer.c \
+	$(KERNEL_DIR)/memory/kmalloc.c \
+	$(KERNEL_DIR)/process.c \
+	$(KERNEL_DIR)/syscall.c
 
-# Object files
+DRIVER_SOURCES = \
+	$(SRC_DIR)/drivers/vga/vga.c \
+	$(SRC_DIR)/drivers/keyboard/keyboard.c \
+	$(SRC_DIR)/drivers/graphics/graphics.c \
+	$(SRC_DIR)/drivers/network/network.c \
+	$(SRC_DIR)/drivers/pci/pci.c
+
+# Network stack sources (non-kernel dir)
+NET_SOURCES := $(wildcard $(SRC_DIR)/net/*.c)
+
+NET_OBJECTS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(NET_SOURCES))
+
 KERNEL_OBJECTS = $(KERNEL_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-HAL_OBJECTS = $(HAL_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-HAL_ASM_OBJECTS = $(HAL_ASM_SOURCES:$(SRC_DIR)/%.asm=$(OBJ_DIR)/%.o)
-BOOT_OBJECTS = $(BOOT_SOURCES:$(SRC_DIR)/%.asm=$(OBJ_DIR)/%.o)
+DRIVER_OBJECTS = $(DRIVER_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-# Target files
-KERNEL_BIN = $(BUILD_DIR)/kernel.bin
-BOOTLOADER_BIN = $(BUILD_DIR)/bootloader.bin
-EMBEDDED_BOOTLOADER_BIN = $(BUILD_DIR)/embedded_bootloader.bin
-EMBEDDED_OS_BMP = $(BUILD_DIR)/compileos_embedded.bmp
-ISO_IMAGE = $(BUILD_DIR)/compileos.iso
-EMBED_TOOL = $(BUILD_DIR)/embed_os
+# Rust library build
+RUST_LIB_DIR = $(KERNEL_DIR)/rust_alloc
+RUST_TARGET = $(OBJ_DIR)/librust_alloc.a
 
-# Default target
-all: $(ISO_IMAGE)
+$(RUST_TARGET): $(RUST_LIB_DIR)/src/lib.rs | $(OBJ_DIR)
+	cd $(RUST_LIB_DIR) && $(CARGO) build --release --target-dir ../../$(BUILD_DIR)
+	cp $(BUILD_DIR)/release/librust_alloc.a $(RUST_TARGET)
 
 # Create build directories
 $(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)/kernel/memory
-	mkdir -p $(OBJ_DIR)/kernel/process
-	mkdir -p $(OBJ_DIR)/kernel/debugger
 	mkdir -p $(OBJ_DIR)/kernel/terminal
-	mkdir -p $(OBJ_DIR)/kernel/repl
-	mkdir -p $(OBJ_DIR)/hal/arch/x86_64
-	mkdir -p $(OBJ_DIR)/hal/arch/arm64
+	mkdir -p $(OBJ_DIR)/kernel/fs
+	mkdir -p $(OBJ_DIR)/kernel/window
+	mkdir -p $(OBJ_DIR)/kernel/boot
+	mkdir -p $(OBJ_DIR)/kernel/memory
+	mkdir -p $(OBJ_DIR)/kernel/apps
 	mkdir -p $(OBJ_DIR)/drivers/vga
 	mkdir -p $(OBJ_DIR)/drivers/keyboard
-	mkdir -p $(OBJ_DIR)/boot
-	mkdir -p $(OBJ_DIR)/tools
+	mkdir -p $(OBJ_DIR)/kernel/desktop
+	mkdir -p $(OBJ_DIR)/drivers/network
 
-# Compile C sources
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Assemble ASM sources
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.asm | $(OBJ_DIR)
+	mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) $< -o $@
 
-# Link kernel
-$(KERNEL_BIN): $(KERNEL_OBJECTS) $(HAL_OBJECTS) $(HAL_ASM_OBJECTS) | $(OBJ_DIR)
+# Assemble top-level boot.S (NASM syntax)
+$(OBJ_DIR)/bootS.o: $(SRC_DIR)/boot/boot.S | $(OBJ_DIR)
+	$(AS) -f elf32 $< -o $@
+
+# Assemble interrupt handlers
+$(OBJ_DIR)/kernel/interrupts_asm.o: $(KERNEL_DIR)/interrupts.asm | $(OBJ_DIR)
+	$(AS) $(ASFLAGS) $< -o $@
+
+# Assemble process context switching
+$(OBJ_DIR)/kernel/process_asm.o: $(KERNEL_DIR)/process.asm | $(OBJ_DIR)
+	$(AS) $(ASFLAGS) $< -o $@
+
+# Use top-level boot.S for multiboot header/entry
+BOOT_ASM_SOURCES = boot.S
+BOOT_ASM_OBJECTS = $(OBJ_DIR)/bootS.o
+INTERRUPT_ASM_OBJECTS = $(OBJ_DIR)/kernel/interrupts_asm.o
+PROCESS_ASM_OBJECTS = $(OBJ_DIR)/kernel/process_asm.o
+
+# Link kernel (multiboot must be first!)
+$(KERNEL_BIN): $(BOOT_ASM_OBJECTS) $(KERNEL_OBJECTS) $(DRIVER_OBJECTS) $(NET_OBJECTS) $(INTERRUPT_ASM_OBJECTS) $(PROCESS_ASM_OBJECTS) $(RUST_TARGET) | $(OBJ_DIR)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-# Create bootloader binary
-$(BOOTLOADER_BIN): $(BOOT_OBJECTS) | $(OBJ_DIR)
-	$(OBJCOPY) -O binary $< $@
+# Run in QEMU (using ELF multiboot kernel)
+run: $(KERNEL_BIN)
+	qemu-system-x86_64 -kernel $(KERNEL_BIN) -m 128M
 
-# Create embedded bootloader binary
-$(EMBEDDED_BOOTLOADER_BIN): $(OBJ_DIR)/boot/embedded_boot.o | $(OBJ_DIR)
-	$(OBJCOPY) -O binary $< $@
-
-# Create embed tool
-$(EMBED_TOOL): $(OBJ_DIR)/tools/embed_os.o | $(OBJ_DIR)
-	$(CC) -o $@ $^
-
-# Create embedded OS BMP
-$(EMBEDDED_OS_BMP): $(KERNEL_BIN) $(EMBED_TOOL) | $(BUILD_DIR)
-	$(EMBED_TOOL) embed splash.bmp $(KERNEL_BIN) $@
-
-# Create ISO image
-$(ISO_IMAGE): $(KERNEL_BIN) $(BOOTLOADER_BIN)
-	mkdir -p $(BUILD_DIR)/iso/boot/grub
-	cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/
-	cp $(BOOTLOADER_BIN) $(BUILD_DIR)/iso/boot/
-	cp grub.cfg $(BUILD_DIR)/iso/boot/grub/
-	grub-mkrescue -o $@ $(BUILD_DIR)/iso/
+# Debug in QEMU (using ELF multiboot kernel)
+debug: $(KERNEL_BIN)
+	qemu-system-x86_64 -kernel $(KERNEL_BIN) -m 128M -s -S
 
 # Clean build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
-
-# Run in QEMU
-run: $(ISO_IMAGE)
-	qemu-system-x86_64 -cdrom $(ISO_IMAGE) -m 512M
-
-# Debug in QEMU
-debug: $(ISO_IMAGE)
-	qemu-system-x86_64 -cdrom $(ISO_IMAGE) -m 512M -s -S
-
-# Build embedded OS
-embedded: $(EMBEDDED_OS_BMP)
-	@echo "Embedded OS created: $(EMBEDDED_OS_BMP)"
-
-# Run embedded OS in QEMU
-run-embedded: $(EMBEDDED_OS_BMP)
-	qemu-system-x86_64 -hda $(EMBEDDED_OS_BMP) -m 512M
-
-# Extract OS from embedded BMP
-extract-os: $(EMBED_TOOL)
-	$(EMBED_TOOL) extract $(EMBEDDED_OS_BMP) $(BUILD_DIR)/extracted_kernel.bin
-
-# Verify embedded OS
-verify-embedded: $(EMBED_TOOL) $(EMBEDDED_OS_BMP)
-	$(EMBED_TOOL) verify $(EMBEDDED_OS_BMP)
 
 # Install dependencies (Ubuntu/Debian)
 install-deps:
@@ -134,7 +126,7 @@ install-deps:
 help:
 	@echo "CompileOS Build System"
 	@echo "Available targets:"
-	@echo "  all          - Build everything (default)"
+	@echo "  all          - Build kernel (default)"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  run          - Run in QEMU"
 	@echo "  debug        - Run in QEMU with GDB server"
@@ -142,23 +134,3 @@ help:
 	@echo "  help         - Show this help"
 
 .PHONY: all clean run debug install-deps help
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc  -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o
-build/obj/kernel/util.o: src/kernel/util.c
-	gcc -Wall -Wextra -std=c99 -ffreestanding -fno-builtin -fno-stack-protector -mno-red-zone -mcmodel=kernel -fno-pic -fno-pie -Isrc -Isrc/hal -c src/kernel/util.c -o build/obj/kernel/util.o
-
-build/obj/hal/arch/x86_64/isr.o: src/hal/arch/x86_64/isr.S
-	nasm -f elf64 src/hal/arch/x86_64/isr.S -o build/obj/hal/arch/x86_64/isr.o

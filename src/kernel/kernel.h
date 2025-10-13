@@ -60,3 +60,4 @@ int syscall_register(syscall_t call, syscall_handler_t handler);
 int syscall_invoke(syscall_t call, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
 
 #endif // KERNEL_H
+

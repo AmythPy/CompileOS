@@ -8,6 +8,9 @@
 #include "io.h"
 #include <string.h>
 
+// External keyboard handler
+extern void keyboard_irq_handler(void);
+
 // IDT and IDT descriptor
 static idt_entry_t idt[256];
 static idt_descriptor_t idt_desc;
@@ -79,8 +82,14 @@ void interrupts_init(void) {
     // Initialize PIC
     pic_init();
     
+    // Enable keyboard IRQ (IRQ 1)
+    pic_enable_irq(1);
+    
     // Load IDT
     interrupts_load_idt();
+    
+    // Enable interrupts
+    interrupts_enable();
 }
 
 // Load IDT
@@ -90,8 +99,6 @@ void interrupts_load_idt(void) {
 
 // Set interrupt handler
 void interrupts_set_handler(uint8_t vector, interrupt_handler_func_t handler, uint8_t type) {
-    if (vector >= 256) return;
-    
     uint64_t address = (uint64_t)handler;
     
     idt[vector].offset_low = address & 0xFFFF;
@@ -198,97 +205,14 @@ void pic_unmask_all(void) {
     io_outb(PIC2_DATA, 0x00);
 }
 
-// Common interrupt handler
-void interrupt_handler_common(interrupt_context_t* context) {
-    uint32_t interrupt_number = context->interrupt_number;
-    
-    // Handle IRQs
-    if (interrupt_number >= 32 && interrupt_number < 48) {
-        uint8_t irq = interrupt_number - 32;
-        pic_send_eoi(irq);
-    }
-    
-    // Call specific handler if registered
-    if (interrupt_handlers[interrupt_number]) {
-        interrupt_handlers[interrupt_number](interrupt_number, context->error_code, context);
-    }
-    
-    // Handle exceptions
-    if (interrupt_number < 32) {
-        switch (interrupt_number) {
-            case INT_DIVIDE_ERROR:
-                exception_divide_error(context);
-                break;
-            case INT_DEBUG:
-                exception_debug(context);
-                break;
-            case INT_NMI:
-                exception_nmi(context);
-                break;
-            case INT_BREAKPOINT:
-                exception_breakpoint(context);
-                break;
-            case INT_OVERFLOW:
-                exception_overflow(context);
-                break;
-            case INT_BOUND_RANGE:
-                exception_bound_range(context);
-                break;
-            case INT_INVALID_OPCODE:
-                exception_invalid_opcode(context);
-                break;
-            case INT_DEVICE_NOT_AVAILABLE:
-                exception_device_not_available(context);
-                break;
-            case INT_DOUBLE_FAULT:
-                exception_double_fault(context);
-                break;
-            case INT_COPROCESSOR_SEGMENT:
-                exception_coprocessor_segment(context);
-                break;
-            case INT_INVALID_TSS:
-                exception_invalid_tss(context);
-                break;
-            case INT_SEGMENT_NOT_PRESENT:
-                exception_segment_not_present(context);
-                break;
-            case INT_STACK_FAULT:
-                exception_stack_fault(context);
-                break;
-            case INT_GENERAL_PROTECTION:
-                exception_general_protection(context);
-                break;
-            case INT_PAGE_FAULT:
-                exception_page_fault(context);
-                break;
-            case INT_FPU_ERROR:
-                exception_fpu_error(context);
-                break;
-            case INT_ALIGNMENT_CHECK:
-                exception_alignment_check(context);
-                break;
-            case INT_MACHINE_CHECK:
-                exception_machine_check(context);
-                break;
-            case INT_SIMD_FPU_ERROR:
-                exception_simd_fpu_error(context);
-                break;
-            case INT_VIRTUALIZATION:
-                exception_virtualization(context);
-                break;
-            case INT_SECURITY:
-                exception_security(context);
-                break;
-            default:
-                // Unknown exception
-                break;
-        }
-    }
-}
+// First interrupt_handler_common removed - using merged version below
 
 // Exception handlers (simplified implementations)
 void exception_divide_error(interrupt_context_t* context) {
-    // TODO: Implement divide error handling
+    volatile uint16_t* v = (uint16_t*)0xB8000;
+    for (int i = 0; i < 80*25; i++) v[i] = 0x4F20; // red bg, white text
+    const char* msg = "EXCEPTION: DIVIDE ERROR";
+    for (int i = 0; msg[i]; i++) v[i] = (0x4F00 | msg[i]);
     (void)context;
 }
 
@@ -318,7 +242,10 @@ void exception_bound_range(interrupt_context_t* context) {
 }
 
 void exception_invalid_opcode(interrupt_context_t* context) {
-    // TODO: Implement invalid opcode handling
+    volatile uint16_t* v = (uint16_t*)0xB8000;
+    for (int i = 0; i < 80*25; i++) v[i] = 0x4F20;
+    const char* msg = "EXCEPTION: INVALID OPCODE";
+    for (int i = 0; msg[i]; i++) v[i] = (0x4F00 | msg[i]);
     (void)context;
 }
 
@@ -353,12 +280,18 @@ void exception_stack_fault(interrupt_context_t* context) {
 }
 
 void exception_general_protection(interrupt_context_t* context) {
-    // TODO: Implement general protection handling
+    volatile uint16_t* v = (uint16_t*)0xB8000;
+    for (int i = 0; i < 80*25; i++) v[i] = 0x4F20;
+    const char* msg = "EXCEPTION: GENERAL PROTECTION";
+    for (int i = 0; msg[i]; i++) v[i] = (0x4F00 | msg[i]);
     (void)context;
 }
 
 void exception_page_fault(interrupt_context_t* context) {
-    // TODO: Implement page fault handling
+    volatile uint16_t* v = (uint16_t*)0xB8000;
+    for (int i = 0; i < 80*25; i++) v[i] = 0x4F20;
+    const char* msg = "EXCEPTION: PAGE FAULT";
+    for (int i = 0; msg[i]; i++) v[i] = (0x4F00 | msg[i]);
     (void)context;
 }
 
@@ -391,3 +324,39 @@ void exception_security(interrupt_context_t* context) {
     // TODO: Implement security handling
     (void)context;
 }
+
+// Common interrupt handler
+void interrupt_handler_common(interrupt_context_t* context) {
+    uint32_t int_num = context->interrupt_number;
+    
+    // Handle timer interrupt (IRQ 0 = interrupt 32)
+    if (int_num == 32) {
+        // Notify HAL timer and send EOI
+        extern void hal_timer_on_interrupt(void);
+        hal_timer_on_interrupt();
+        pic_send_eoi(0);
+        return;
+    }
+
+    // Handle keyboard interrupt (IRQ 1 = interrupt 33)
+    if (int_num == 33) {
+        keyboard_irq_handler();
+        pic_send_eoi(1);
+        return;
+    }
+    
+    // Handle other interrupts
+    if (int_num < 32) {
+        // Exception handler
+        // TODO: Implement proper exception handling
+    } else if (int_num >= 32 && int_num < 48) {
+        // IRQ handler
+        uint8_t irq = int_num - 32;
+        pic_send_eoi(irq);
+    }
+}
+
+
+
+
+

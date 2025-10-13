@@ -20,26 +20,6 @@ static struct {
     bool cursor_visible;
 } g_vga_state = {0};
 
-// VGA color palette (16 colors)
-static const uint8_t vga_colors[16] = {
-    0x00, // Black
-    0x01, // Blue
-    0x02, // Green
-    0x03, // Cyan
-    0x04, // Red
-    0x05, // Magenta
-    0x06, // Brown
-    0x07, // Light Gray
-    0x08, // Dark Gray
-    0x09, // Light Blue
-    0x0A, // Light Green
-    0x0B, // Light Cyan
-    0x0C, // Light Red
-    0x0D, // Light Magenta
-    0x0E, // Yellow
-    0x0F  // White
-};
-
 /**
  * Initialize VGA
  */
@@ -55,7 +35,7 @@ int vga_init(void) {
     g_vga_state.buffer = (uint16_t*)0xB8000; // VGA text buffer
     g_vga_state.cursor.x = 0;
     g_vga_state.cursor.y = 0;
-    g_vga_state.cursor.visible = true;
+    g_vga_state.cursor_visible = true;
     g_vga_state.current_attr.foreground = VGA_COLOR_WHITE;
     g_vga_state.current_attr.background = VGA_COLOR_BLACK;
     g_vga_state.current_attr.blink = false;
@@ -182,7 +162,7 @@ int vga_set_cursor_visible(bool visible) {
         return -1;
     }
     
-    g_vga_state.cursor.visible = visible;
+    g_vga_state.cursor_visible = visible;
     
     // Update hardware cursor
     if (visible) {
@@ -199,7 +179,7 @@ int vga_set_cursor_visible(bool visible) {
  * Check if cursor is visible
  */
 bool vga_is_cursor_visible(void) {
-    return g_vga_state.cursor.visible;
+    return g_vga_state.cursor_visible;
 }
 
 /**
@@ -524,3 +504,39 @@ int vga_get_screen_info(uint16_t* width, uint16_t* height, vga_mode_t* mode) {
     
     return 0;
 }
+
+/**
+ * Move cursor to home position
+ */
+int vga_cursor_home(void) {
+    return vga_set_cursor(0, 0);
+}
+
+/**
+ * Move cursor to next line
+ */
+int vga_cursor_next_line(void) {
+    if (!g_vga_state.initialized) {
+        return -1;
+    }
+    
+    g_vga_state.cursor.x = 0;
+    g_vga_state.cursor.y++;
+    
+    if (g_vga_state.cursor.y >= g_vga_state.height) {
+        vga_scroll_up();
+        g_vga_state.cursor.y = g_vga_state.height - 1;
+    }
+    
+    return vga_set_cursor(g_vga_state.cursor.x, g_vga_state.cursor.y);
+}
+
+
+
+
+
+
+
+
+
+
